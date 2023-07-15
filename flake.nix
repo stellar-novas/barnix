@@ -13,156 +13,209 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-        nativeBuildInputs = with pkgs; [
-          llvmPackages_16.bintools
-          pkg-config
-          xorg.libXcursor
-          compdb
-          cmake
-          ninja
-          shaderc
-        ];
-        buildInputs = with pkgs; [
-          SDL2.dev
-          libdevil.dev
-          curl.dev
-          p7zip
-          openal
-          libogg.dev
-          libvorbis.dev
-          libunwind.dev
-          freetype.dev
-          glew.dev
-          minizip
-          fontconfig.dev
-          jsoncpp.dev
-          vulkan-headers
-          vulkan-loader
-        ];
+        versions = import ./versions.nix;
       in {
         formatter = pkgs.alejandra;
         packages = rec {
-          fetchfiles = {
-            files,
-            sha256 ? "",
-            preferLocalBuild ? true,
-            parallel ? 100,
-            checkCertificate ? true,
-          }:
-            pkgs.stdenvNoCC.mkDerivation {
-              name = "files";
-              nativeBuildInputs = [pkgs.aria];
-              outputHashAlgo = "sha256";
-              outputHashMode = "recursive";
-              outputHash = sha256;
-              parallel = toString parallel;
-              checkCertificate = toString checkCertificate;
+          spring-byar = with pkgs;
+            stdenv.mkDerivation {
+              pname = "spring-byar";
+              version = versions.spring-byar.version;
 
-              inherit files;
-              SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              src = fetchurl {
+                url = versions.spring-byar.url;
+                sha256 = versions.spring-byar.sha256;
+              };
 
-              builder = ./builder.sh;
-              impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars;
-              inherit preferLocalBuild;
+              nativeBuildInputs = [
+                p7zip
+                autoPatchelfHook
+              ];
+
+              buildInputs = [
+                xorg.libXcursor
+                SDL2.dev
+                libdevil.dev
+                curl.dev
+                p7zip
+                openal
+                libogg.dev
+                libvorbis.dev
+                libunwind.dev
+                freetype.dev
+                glew.dev
+                minizip
+                fontconfig.dev
+                jsoncpp.dev
+                vulkan-headers
+                vulkan-loader
+              ];
+
+              unpackPhase = ''
+                7z x "$src"
+              '';
+
+              installPhase = ''
+                mkdir -p $out
+                cp -aLv . $out/bin
+              '';
             };
 
-          bar-content = pkgs.stdenv.mkDerivation {
-            name = "bar-content";
-            src = fetchfiles {
-              files = ./sources/files.list;
-              sha256 = "sha256-LJmwCcWV/UTyouJHnhxETn0p1BDAil7oh5Cu//4bjWs=";
-              checkCertificate = false;
+          pr-downloader-bar = with pkgs;
+            stdenv.mkDerivation {
+              pname = "pr-downloader-bar";
+              version = versions.pr-downloader-bar.version;
+              src = fetchFromGitHub {
+                owner = "beyond-all-reason";
+                repo = "pr-downloader";
+                rev = versions.pr-downloader-bar.rev;
+                sha256 = versions.pr-downloader-bar.sha256;
+                fetchSubmodules = true;
+              };
+              buildInputs = [
+                gcc
+                cmake
+                curl
+                pkg-config
+                jsoncpp
+                boost
+                minizip
+              ];
+              postInstall = ''
+                mkdir $out/bin
+                mv $out/pr-downloader $out/bin
+              '';
             };
-            buildPhase = ''
-              mkdir -p $out
-              cp -vLr rapid $out
-              cp -vLr pool $out
-              cp -vLr packages $out
-            '';
-          };
 
-          spring = pkgs.stdenv.mkDerivation rec {
-            pname = "spring-bar";
-            version = "105.1.1-1821-gaca6f20";
-            inherit nativeBuildInputs buildInputs;
-
-            hardeningDisable = ["all"];
-
-            src = pkgs.fetchFromGitHub {
+          spring-launcher-byar = with pkgs; let
+            chobby-byar-src = fetchFromGitHub {
               owner = "beyond-all-reason";
-              repo = "spring";
-              rev = "aca6f204edbc2e64b8726996283fd522f404e1a2";
-              sha256 = "sha256-NSgKUx83YejNTOcANAG+EAgoXz8AIXnS8iqE8LsHgCc=";
-              fetchSubmodules = true;
+              repo = "BYAR-Chobby";
+              rev = versions.chobby-byar.rev;
+              sha256 = versions.chobby-byar.sha256;
+            };
+            spring-launcher-byar-src = fetchFromGitHub {
+              owner = "beyond-all-reason";
+              repo = "spring-launcher";
+              rev = versions.spring-launcher-byar.rev;
+              sha256 = versions.spring-launcher-byar.sha256;
+            };
+            version = "${versions.chobby-byar.version}-launcher-${versions.spring-launcher-byar.version}";
+            src =
+              runCommand "byar-launcher-src-${version}"
+              {
+                buildInputs = [nodejs jq nodePackages.npm];
+              } ''
+                cp -r ${chobby-byar-src} BYAR-Chobby
+                cp -r ${spring-launcher-byar-src} launcher
+                chmod -R +w *
+
+                pushd launcher
+                echo "Patching files..."
+                patch -p1 < ${./patches/01-disable-updates.patch}
+                popd
+
+                echo "Applying chobby ${versions.chobby-byar.version} to launcher ${versions.spring-launcher-byar.version}..."
+                cp -r BYAR-Chobby/dist_cfg/* launcher/src/
+                for dir in bin files build; do
+                  mkdir -p launcher/$dir
+                  if [ -d launcher/src/$dir/ ]; then
+                    mv launcher/src/$dir/* launcher/$dir/
+                    rm -rf launcher/src/$dir
+                  fi
+                done
+
+                GITHUB_REPOSITORY=beyond-all-reason/BYAR-Chobby
+                PACKAGE_VERSION=${version}
+                pushd BYAR-Chobby
+                echo "Creating package.json for launcher..."
+                node build/make_package_json.js ../launcher/package.json dist_cfg/config.json $GITHUB_REPOSITORY $PACKAGE_VERSION
+                popd
+
+                echo "Removing electron as dependency..."
+                cat launcher/package.json \
+                  | jq 'del(.devDependencies.electron)' \
+                  > temp
+                mv temp launcher/package.json
+                cat launcher/package-lock.json \
+                  | jq 'del(.packages."".devDependencies.electron)' \
+                  | jq 'del(.packages."node_modules/electron")' \
+                  > temp
+                mv temp launcher/package-lock.json
+
+                mv launcher $out
+              '';
+            nodeModules = buildNpmPackage {
+              inherit src version;
+              pname = "spring-launcher-byar-node-modules";
+              npmDepsHash = versions.spring-launcher-byar.npmDepsHash;
+              npmFlags = ["--legacy-peer-deps"];
+              dontNpmBuild = true;
+              passthru = {
+                buildInputs = [
+                  nodejs
+                  libcxx
+                  xorg.libX11
+                ];
+              };
+              installPhase = ''
+                mv node_modules $out
+              '';
+            };
+          in
+            stdenv.mkDerivation {
+              pname = "spring-launcher-byar";
+              inherit version src;
+
+              phases = ["buildPhase"];
+              buildPhase = ''
+                mkdir -p "$out/lib"
+                cp -aLv "$src" "$out/lib/dist"
+                chmod -R +w "$out"
+                cp -r "${nodeModules}" "$out/lib/dist/node_modules"
+
+                # rm will validate that the original file exist
+                rm "$out/lib/dist/bin/butler/linux/butler"
+                ln -s "${pkgs.butler}/bin/butler" "$out/lib/dist/bin/butler/linux/butler"
+
+                rm "$out/lib/dist/bin/pr-downloader"
+                ln -s "${pr-downloader-bar}/bin/pr-downloader" "$out/lib/dist/bin/pr-downloader"
+
+                ln -s "${p7zip}/bin/7z" "$out/lib/dist/bin/7z"
+
+                rm "$out/lib/dist/src/path_7za.js"
+                cat << EOF > "$out/lib/dist/src/path_7za.js"
+                'use strict';
+                module.exports = "$out/lib/dist/bin/7z";
+                EOF
+              '';
             };
 
-            configurePhase = ''
-              echo "${version} BAR105" > VERSION
-              mkdir builddir-nix
-              cd builddir-nix
-              FLAGS='-msse -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 -mno-sse4 -mno-sse4a -mno-avx -mno-fma -mno-fma4 -mno-xop -mno-lwp -mno-avx2 -mfpmath=sse -fsingle-precision-constant -frounding-math -mieee-fp -pipe -fno-strict-aliasing  -fvisibility=hidden -pthread -O3 -g -DNDEBUG -DNDEBUG -DCURL_STATICLIB'
-              cmake \
-                -DCMAKE_TOOLCHAIN_FILE="${./toolchain/gcc_x86_64-pc-linux-gnu.cmake}" \
-                -DCMAKE_CXX_COMPILER_LAUNCHER="" \
-                -DCMAKE_CXX_FLAGS_REL="$FLAGS -std=c++17 -fvisibility-inlines-hidden" \
-                -DCMAKE_C_FLAGS_REL="$FLAGS" \
-                -DCMAKE_BUILD_TYPE=REL \
-                -DDEBUG_MAX_WARNINGS=OFF \
-                -DAI_TYPES=NATIVE \
-                -DINSTALL_PORTABLE=ON \
-                -DCMAKE_USE_RELATIVE_PATHS:BOOL=1 \
-                -DBINDIR:PATH=./ \
-                -DLIBDIR:PATH=./ \
-                -DDATADIR:PATH=./ \
-                -DCMAKE_INSTALL_PREFIX="$out/bin" \
-                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-                -G Ninja \
-                ..
-            '';
+          byar = with pkgs;
+            writeShellApplication {
+              name = "byar";
 
-            installPhase = ''
-              ninja install
-            '';
-          };
-
-          byar = pkgs.stdenv.mkDerivation {
-            pname = "byar";
-            version = "105.1.1-1821-gaca6f20";
-            passAsFile = ["text"];
-            text = ''
-              SCRIPT_DIR=$( cd -- "$( dirname -- "''${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-              if [ -n "$WAYLAND_DISPLAY" ]; then
-                export SDL_VIDEODRIVER=wayland
-              fi
-
-              mkdir -p $HOME/.local/share/spring/bar
-              $SCRIPT_DIR/spring --isolation --isolation-dir $SCRIPT_DIR --write-dir $HOME/.local/share/spring/bar --menu 'rapid://byar-chobby:test'
-            '';
-
-            src = ./.;
-
-            buildPhase = ''
-              mkdir -p $out/bin
-              cp -vLr ${spring}/bin/* $out/bin
-
-              ln -s ${bar-content}/rapid $out/bin/rapid
-              ln -s ${bar-content}/pool $out/bin/pool
-              ln -s ${bar-content}/packages $out/bin/packages
-
-              cat ${./chobby_config.json} > $out/bin/chobby_config.json
-
-              if [ -e "$textPath" ]; then
-                mv -f "$textPath" "$out/bin/byar"
-              else
-                echo -n "$text" > "$out/bin/byar"
-              fi
-              chmod +x $out/bin/byar
-            '';
-          };
+              text = let
+                electron = electron_24;
+              in ''
+                declare -a args=( )
+                if [ -n "$WAYLAND_DISPLAY" ]; then
+                  export SDL_VIDEODRIVER=wayland
+                  args+=(
+                    --enable-features="UseOzonePlatform,WaylandWindowDecorations"
+                  )
+                fi
+                ${electron}/bin/electron \
+                    "''${args[@]}" \
+                    ${spring-launcher-byar}/lib/dist \
+                      --write-path="$HOME/.cache/beyond-all-reason/" \
+                      --engine-path='${spring-byar}/bin/spring'
+              '';
+            };
         };
         devShell = pkgs.mkShell {
-          inherit nativeBuildInputs buildInputs;
           hardeningDisable = ["all"];
+          packages = with pkgs; [aria];
         };
       }
     );

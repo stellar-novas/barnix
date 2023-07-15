@@ -1,0 +1,167 @@
+diff --git a/src/launcher_args.js b/src/launcher_args.js
+index 30186c0..8ef476a 100644
+--- a/src/launcher_args.js
++++ b/src/launcher_args.js
+@@ -5,6 +5,11 @@ const argv = require('yargs') // eslint-disable-line
+ 		type: 'string',
+ 		description: 'Path to config.json'
+ 	})
++	.option('engine-path', {
++		alias: 'e',
++		type: 'string',
++		description: 'Path to engine'
++	})
+ 	.option('write-path', {
+ 		alias: 'w',
+ 		type: 'string',
+@@ -25,5 +30,13 @@ if (argv.writePath != null) {
+ 		process.exit(1);
+ 	}
+ }
++if (argv.enginePath != null) {
++	try {
++		fs.accessSync(argv.enginePath, fs.constants.R_OK | fs.constants.E_OK);
++	} catch (err) {
++		console.error(`Cannot execute engine: "${argv.enginePath}"`);
++		process.exit(1);
++	}
++}
+ 
+-module.exports = argv;
+\ No newline at end of file
++module.exports = argv;
+diff --git a/src/launcher_wizard.js b/src/launcher_wizard.js
+index 82c418f..fbb9d51 100644
+--- a/src/launcher_wizard.js
++++ b/src/launcher_wizard.js
+@@ -5,7 +5,8 @@ const { app } = require('electron');
+ 
+ const log = require('electron-log');
+ 
+-const { config } = require('./launcher_config');
++const { config } = require('./launcher_config');
++const { enginePath }= require('./launcher_args');
+ const { gui } = require('./launcher_gui');
+ const updater = require('./updater');
+ const springDownloader = require('./spring_downloader');
+@@ -88,17 +89,6 @@ class Wizard extends EventEmitter {
+ 				});
+ 			});
+ 
+-			config.downloads.engines.forEach((engine) => {
+-				steps.push({
+-					name: 'engine',
+-					item: engine,
+-					action: () => {
+-						this.isActive = true;
+-						springDownloader.downloadEngine(engine);
+-					}
+-				});
+-			});
+-
+ 			if (config.route_prd_to_nextgen) {
+ 				config.downloads.games.forEach((game) => {
+ 					steps.push({
+@@ -147,91 +137,9 @@ class Wizard extends EventEmitter {
+ 				steps.push(pushConfigFetchActionAtEnd);
+ 			}
+ 
+-			// Queue asynchronous check for launcher update.
+-			const isDev = !require('electron').app.isPackaged;
+-			if (!isDev) {
+-				const asyncLauncherUpdateCheck = {
+-					promise: null,
+-					action: () => {
+-						const promise = new Promise((resolve, reject) => {
+-							updater.on('update-available', () => {
+-								resolve(true);
+-							});
+-							updater.on('update-not-available', () => {
+-								resolve(false);
+-							});
+-							updater.on('error', error => {
+-								reject(error);
+-							});
+-						})
+-						updater.checkForUpdates();
+-						return promise;
+-					}
+-				}
+-				asyncSteps.push(asyncLauncherUpdateCheck);
+-
+-				const performUpdate = () => {
+-					gui.send('dl-started', 'autoupdate');
+-
+-					updater.on('download-progress', (d) => {
+-						console.info(`Self-download progress: ${d.percent}`);
+-						gui.send('dl-progress', 'autoUpdate', d.percent, 100);
+-					});
+-					updater.on('update-downloaded', () => {
+-						log.info('Self-update downloaded');
+-						gui.send('dl-finished', 'autoupdate');
+-						setImmediate(() => updater.quitAndInstall(config.silent, true));
+-					});
+-
+-					updater.on('error', error => {
+-						log.error(`Application failed to self-update. Error: ${error}`);
+-					});
+-
+-					updater.downloadUpdate();
+-				};
+-
+-				steps.push({
+-					name: 'launcher_update',
+-					action: () => {
+-						log.info('Checking for launcher update');
+-
+-						let timeoutId;
+-						const checkTimeout = new Promise(resolve => {
+-							timeoutId = setTimeout(() => {
+-								log.error('Launcher update check timed out, ignoring');
+-								resolve(false);
+-
+-							}, 5000);
+-						});
+-
+-						Promise.race([asyncLauncherUpdateCheck.promise, checkTimeout]).then(updateAvailable => {
+-							clearTimeout(timeoutId);
+-							if (!updateAvailable) {
+-								log.info('No update available.');
+-								wizard.nextStep();
+-							} else {
+-								performUpdate();
+-							}
+-						}).catch(error => {
+-							log.error(`Failed to check for launcher updates. Error: ${error}, ignoring`);
+-							wizard.nextStep();
+-						});
+-					}
+-				});
+-			} else {
+-				console.log('Development version: no self-update required');
+-			}
++			console.log('Immutable version: self-update not supported');
+ 		}
+ 
+-		let enginePath;
+-		if (config.launch.engine_path != null) {
+-			enginePath = config.launch.engine_path;
+-		} else {
+-			const engineName = config.launch.engine || config.downloads.engines[0];
+-			if (engineName != null) {
+-				enginePath = path.join(springPlatform.writePath, 'engine', engineName, springPlatform.springBin);
+-			}
+-		}
+ 		if (enginePath != null) {
+ 			steps.push({
+ 				name: 'start',
+@@ -257,6 +165,9 @@ class Wizard extends EventEmitter {
+ 					});
+ 				}
+ 			});
++		} else {
++			console.error(`Engine path argument must be provided`);
++			process.exit(1);
+ 		}
+ 
+ 		this.started = false;
