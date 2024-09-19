@@ -112,7 +112,7 @@
 
                 pushd launcher
                 echo "Patching files..."
-                patch -p1 < ${./patches/01-disable-updates.patch}
+                # patch -p1 < ${./patches/01-disable-updates.patch}
                 popd
 
                 echo "Applying chobby ${versions.chobby-byar.version} to launcher ${versions.spring-launcher-byar.version}..."
@@ -151,6 +151,7 @@
               npmDepsHash = versions.spring-launcher-byar.npmDepsHash;
               npmFlags = ["--legacy-peer-deps"];
               dontNpmBuild = true;
+              forceGitDeps = true;
               passthru = {
                 buildInputs = [
                   nodejs
@@ -175,8 +176,6 @@
                 cp -r "${nodeModules}" "$out/lib/dist/node_modules"
 
                 # rm will validate that the original file exist
-                rm "$out/lib/dist/bin/butler/linux/butler"
-                ln -s "${pkgs.butler}/bin/butler" "$out/lib/dist/bin/butler/linux/butler"
 
                 rm "$out/lib/dist/bin/pr-downloader"
                 ln -s "${pr-downloader-bar}/bin/pr-downloader" "$out/lib/dist/bin/pr-downloader"
@@ -196,7 +195,7 @@
               name = "byar";
 
               text = let
-                electron = electron_24;
+                electron = electron_30;
               in ''
                 declare -a args=( )
                 if [ -n "$WAYLAND_DISPLAY" ]; then

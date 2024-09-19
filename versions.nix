@@ -1,23 +1,23 @@
 {
   spring-byar = {
-    version = "105.1.1-1821-gaca6f20";
-    url = "https://github.com/beyond-all-reason/spring/releases/download/spring_bar_%7BBAR105%7D105.1.1-1821-gaca6f20/spring_bar_.BAR105.105.1.1-1821-gaca6f20_linux-64-minimal-portable.7z";
-    sha256 = "sha256-4eoKWXxJblqH8EL5eGKk2qOP8QXl6BV0NeifnLzyutw=";
+    version = "105.1.1-2511-g747f18b";
+    url = "https://github.com/beyond-all-reason/spring/releases/download/spring_bar_%7BBAR105%7D105.1.1-2511-g747f18b/spring_bar_.BAR105.105.1.1-2511-g747f18b_linux-64-minimal-portable.7z";
+    sha256 = "sha256-+Rc8IfpffR7fLDveDx4UKvtvuNd4ZwL0BIGpM9Rh4qQ=";
   };
   chobby-byar = {
-    version = "1.2124.0";
-    rev = "v1.2124.0";
-    sha256 = "sha256-+bp3hu+YPGaDypNTUK3EY2h0BpphLiskkADvRc5+yxA=";
+    version = "1.2988.0";
+    rev = "v1.2988.0";
+    sha256 = "sha256-mqopt/ciIqr4lNHU8RzsZM/Eawt4hs24CmQ5Fszz+tA=";
   };
   spring-launcher-byar = {
     version = "0000";
-    rev = "c625661330bfdc6e3a6757e4a65e6d5402f1d00a";
-    sha256 = "sha256-qZP4Y94XFQxJEK3gvd5MSwm6TV6laMdJnKbH4YDp7VI=";
-    npmDepsHash = "sha256-CKBdeIGplXSM/OP9+igmLWR/FC2xnwAAhbYwlTp8ZSY=";
+    rev = "2c0a6e17b50ab04ea592c53963c571e5ccb071ba";
+    sha256 = "sha256-JfZQaFp81A9o69cJOc6YPop1pLP2sZvfiMjZCFd6+H4=";
+    npmDepsHash = "sha256-ls0YEWJp+cS+5sCnNciam+SYGSeTukZ3En8taGDv0K4=";
   };
   pr-downloader-bar = {
     version = "0000";
-    rev = "d3ad0156fe1c9123b32f966c00ed3825e62ae15d";
-    sha256 = "sha256-ckDt8cG9fktej3A5xSDZmenn6u1N6pWayqnsLrQVeno=";
+    rev = "185d0bb6a07e4cec56236d18f03d4cfe033e10f1";
+    sha256 = "sha256-8sdYEVLmmY5wLzq3whbOQ2jefPSCaYuU85+lp9M01PI=";
   };
 }
