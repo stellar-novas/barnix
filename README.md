@@ -7,7 +7,8 @@ Still roughing this out, but it should work for you.
 ## Usage
 
 ```sh
-nix run --no-write-lock-file https://codeberg.org/jcdickinson/barnix/archive/main.tar.gz#byar
+mkdir ~/.cache/beyond-all-reason/
+nix run --no-write-lock-file github:stellar-novas/barnix#byar
 ```
 
 No launcher required, nix _is_ the launcher.
